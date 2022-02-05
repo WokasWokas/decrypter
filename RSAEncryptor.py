@@ -1,5 +1,4 @@
 import random, time
-from typing import Text
 
 __KEY_LENGTH__ = 8
 __EXPONENT_KEY_LENGTH__ = 4
@@ -46,39 +45,44 @@ def GenerateNumber(exponent: bool = False) -> int:
         length = __KEY_LENGTH__
     return random.getrandbits(length)
 
-def GetExponent(Euler: int) -> int:
+def GetExponent(Euler: int, PublicKey: int) -> int:
     Exponent = GetRandomPrimeNumber(True)
-    while Exponent > Euler or gcd(Exponent, Euler) != 1:
-        Exponent = GetRandomPrimeNumber()
+    while Exponent > PublicKey or gcd(Exponent, Euler) != 1:
+        Exponent = GetRandomPrimeNumber(True)
     return Exponent
 
-def GetPrivateKey(Euler: int, Exponent: int) -> int:
+def GetPrivateKey(Euler: int, Exponent: int, PublicKey: int) -> int:
     PrivateKey = GetRandomPrimeNumber()
     count = 0
+    ucount = 0
     while (PrivateKey * Exponent) % Euler != 1:
         if count % 200 == 0: 
+            if ucount == 200:
+                return None
             UpdateSeed()
-            Exponent = GetExponent(Euler)
+            Exponent = GetExponent(Euler, PublicKey)
+            ucount += 1
         PrivateKey = GetRandomPrimeNumber()
         count += 1
     return PrivateKey
 
 def GenerateKeys():
     UpdateSeed()
-    FirstKey = 3 #GetRandomPrimeNumber()
-    SecondKey = 7 #GetRandomPrimeNumber()
+    FirstKey = GetRandomPrimeNumber()
+    SecondKey = GetRandomPrimeNumber()
     PublicKey = FirstKey * SecondKey;
     Euler = (FirstKey - 1) * (SecondKey - 1)
-    Exponent = GetExponent(Euler)
-    PrivateKey = GetPrivateKey(Euler, Exponent)
+    Exponent = GetExponent(Euler, PublicKey)
+    PrivateKey = GetPrivateKey(Euler, Exponent, PublicKey)
+    if PrivateKey == None:
+        return None, None
     return (Exponent, PublicKey), (PrivateKey, PublicKey)
 
 def Decode(text: str, pubkey: tuple[int, int]) -> str:
     blocks = SplitString(text)
     decodedblocks = []
     for block in blocks:
-        value = int.from_bytes(bytes(block, __ENCODE__), byteorder='big', signed=True)
-        print('blockdv: ', value)
+        value = int.from_bytes(bytes(block, __ENCODE__), byteorder='little', signed=True)
         decodedblocks.append(pow(value, pubkey[0], pubkey[1]))
     return ' '.join(str(block) for block in decodedblocks)
 
@@ -87,21 +91,34 @@ def Encode(text: int, privkey: tuple[int, int]) -> str:
     blocks = []
     for block in decodedblocks:
         value = pow(int(block), privkey[0], privkey[1])
-        print('blockdc', value)
-        blocks.append(value.to_bytes(value.bit_length(), byteorder='big', signed=True))
-    return b''.join(block for block in blocks)
+        blocks.append(value.to_bytes(value.bit_length(), byteorder='little', signed=True))
+    return ''.join(block.decode(__ENCODE__) for block in blocks)
+
 
 def Main() -> None:
-    pubkey, privkey = GenerateKeys()
-    while True:
-        text = input(' > ')
-        decoded = Decode(text, pubkey)
-        print('decoded: ', decoded)
-        encoded = Encode(decoded, privkey)
-        print('encoded: ', encoded.decode(__ENCODE__))
+    try:
+        pubkey, privkey = GenerateKeys()
+        while(pubkey == None):
+            pubkey, privkey = GenerateKeys()
+        print(pubkey, privkey)
+        while True:
+            text = input('> ')
+            decoded = Decode(text, pubkey)
+            print('decoded: ', decoded)
+            encoded = Encode(decoded, privkey)
+            print(encoded.replace('\0', ''))
+    except UnicodeDecodeError as er:
+        print(er)
+        return None
+    except ValueError as er:
+        print(er)
+        return None
 
 if __name__ == "__main__":
     try:
-        Main()
+        while True:
+            status = Main()
+            if status == None:
+                continue
     except KeyboardInterrupt:
         exit('User close program')
