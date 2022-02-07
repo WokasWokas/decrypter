@@ -2,7 +2,7 @@ import random, time
 import hashlib
 
 __KEY_LENGTH__ = 8
-__EXPONENT_KEY_LENGTH__ = 16
+__EXPONENT_KEY_LENGTH__ = 4
 __BLOCK_LENGTH__ = 1
 __ENCODE__ = 'utf-8'
 
