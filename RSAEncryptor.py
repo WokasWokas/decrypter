@@ -1,7 +1,8 @@
 import random, time
+import hashlib
 
 __KEY_LENGTH__ = 8
-__EXPONENT_KEY_LENGTH__ = 4
+__EXPONENT_KEY_LENGTH__ = 16
 __BLOCK_LENGTH__ = 1
 __ENCODE__ = 'utf-8'
 
@@ -55,7 +56,7 @@ def GetPrivateKey(Euler: int, Exponent: int, PublicKey: int) -> int:
     PrivateKey = GetRandomPrimeNumber()
     count = 0
     ucount = 0
-    while (PrivateKey * Exponent) % Euler != 1:
+    while (PrivateKey * Exponent - 1) % Euler != 0:
         if count % 200 == 0: 
             if ucount == 200:
                 return None
@@ -66,6 +67,16 @@ def GetPrivateKey(Euler: int, Exponent: int, PublicKey: int) -> int:
         count += 1
     return PrivateKey
 
+def CheckKeys(pubkey: tuple[int, int], privkey: tuple[int, int]) -> bool:
+    try:
+        decoded = Decode('test', pubkey)
+        encoded = Encode(decoded, privkey)
+        if encoded.replace('\0', '').encode('utf-8') != 'test'.encode('utf-8'):
+            raise ValueError('Wrong Keys')
+        return True
+    except:
+        return False
+
 def GenerateKeys():
     UpdateSeed()
     FirstKey = GetRandomPrimeNumber()
@@ -75,6 +86,9 @@ def GenerateKeys():
     Exponent = GetExponent(Euler, PublicKey)
     PrivateKey = GetPrivateKey(Euler, Exponent, PublicKey)
     if PrivateKey == None:
+        return None, None
+    status = CheckKeys((Exponent, PublicKey), (PrivateKey, PublicKey))
+    if not status:
         return None, None
     return (Exponent, PublicKey), (PrivateKey, PublicKey)
 
@@ -87,7 +101,7 @@ def Decode(text: str, pubkey: tuple[int, int]) -> str:
     return ' '.join(str(block) for block in decodedblocks)
 
 def Encode(text: int, privkey: tuple[int, int]) -> str:
-    decodedblocks = text.split(' ')
+    decodedblocks = text.split(' ') 
     blocks = []
     for block in decodedblocks:
         value = pow(int(block), privkey[0], privkey[1])
@@ -100,25 +114,23 @@ def Main() -> None:
         pubkey, privkey = GenerateKeys()
         while(pubkey == None):
             pubkey, privkey = GenerateKeys()
-        print(pubkey, privkey)
+        print('PublicKeySHA256:', hashlib.sha256(str(pubkey).encode('utf-8')).hexdigest())
+        print('PrivateKeySHA256:', hashlib.sha256(str(privkey).encode('utf-8')).hexdigest())
         while True:
             text = input('> ')
             decoded = Decode(text, pubkey)
-            print('decoded: ', decoded)
+            print('decoded:', decoded)
             encoded = Encode(decoded, privkey)
-            print(encoded.replace('\0', ''))
-    except UnicodeDecodeError as er:
-        print(er)
-        return None
-    except ValueError as er:
-        print(er)
+            print('Encoded:', encoded.replace('\0', ''))
+    except Exception as error:
+        print(error)
         return None
 
 if __name__ == "__main__":
     try:
         while True:
             status = Main()
-            if status == None:
+            if status is None or status is False:
                 continue
     except KeyboardInterrupt:
-        exit('User close program')
+        exit('\nUser close program')
